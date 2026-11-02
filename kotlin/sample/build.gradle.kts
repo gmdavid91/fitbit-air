@@ -15,6 +15,17 @@ android {
         versionName = "0.1.0"
     }
 
+    // Fixed, deliberately public debug key so each CI build installs over the
+    // previous one. Only for this sample; never use it for a real app.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("sample-debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
