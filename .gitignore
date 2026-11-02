@@ -35,3 +35,8 @@ migrate_working_dir/
 /android/.cxx/
 /android/local.properties
 /example/android/local.properties
+
+# Kotlin library build
+/kotlin/.gradle/
+/kotlin/**/build/
+/kotlin/local.properties

@@ -1,0 +1,36 @@
+name: Kotlin library
+
+on:
+  push:
+    paths:
+      - 'android/src/main/**'
+      - 'android/consumer-rules.pro'
+      - 'kotlin/**'
+      - '.github/workflows/kotlin.yml'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14'
+      - name: Build the Flutter-free library and the sample app
+        run: gradle -p kotlin :fitbit-air-android:assembleRelease :sample:assembleDebug --console=plain
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fitbit-air-android-aar
+          path: kotlin/fitbit-air-android/build/outputs/aar/*.aar
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: air-kotlin-sample-apk
+          path: kotlin/sample/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

@@ -3,10 +3,13 @@
 The public Dart surface deliberately hides the native transport:
 
 ```text
-FitbitAir.isAirPaired() / FitbitAir.vibrate()
-                    │ MethodChannel
-                    ▼
-             FitbitAirPlugin.kt
+FitbitAir.isAirPaired() / FitbitAir.vibrate()      FitbitAirClient (Kotlin, no Flutter)
+                    │ MethodChannel                      │ suspend functions / Flow
+                    ▼                                    │
+   FitbitAirPlugin.kt (src/flutter)                      │
+                    │ AirReply / AirEventSink            │
+                    ▼                                    ▼
+                         AirEngine.kt (src/main)
                     │ Android GATT
                     ▼
        Golden Gate JNI (bundled libxp.so)
@@ -17,7 +20,9 @@ FitbitAir.isAirPaired() / FitbitAir.vibrate()
                  Fitbit Air
 ```
 
-`FitbitAirPlugin` owns one short-lived operation at a time. It locates a bonded
+`AirEngine` holds all transport logic and has no Flutter dependency. `FitbitAirPlugin` (in `android/src/flutter`) only adapts it to method and event channels; the Flutter-free Kotlin library in [`kotlin/`](../kotlin/README.md) compiles the same `android/src/main` sources.
+
+`AirEngine` owns one short-lived operation at a time. It locates a bonded
 device whose Android name contains `Fitbit Air`, connects to the tracker service,
 subscribes to its receive characteristic, bridges BLE packets into Golden Gate,
 and waits for a DTLS session. It then performs the bounded `/settings` sequence

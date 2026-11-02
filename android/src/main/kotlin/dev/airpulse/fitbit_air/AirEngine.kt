@@ -2,7 +2,6 @@ package dev.airpulse.fitbit_air
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
@@ -37,34 +36,36 @@ import com.fitbit.goldengate.bindings.node.NodeKey
 import com.fitbit.goldengate.bindings.stack.DtlsSocketNetifGattlink
 import com.fitbit.goldengate.bindings.stack.Stack
 import com.fitbit.goldengate.bindings.stack.StackEvent
-import io.flutter.embedding.engine.plugins.FlutterPlugin
-import io.flutter.embedding.engine.plugins.activity.ActivityAware
-import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
-import io.flutter.plugin.common.MethodCall
-import io.flutter.plugin.common.MethodChannel
-import io.flutter.plugin.common.EventChannel
-import io.flutter.plugin.common.PluginRegistry.RequestPermissionsResultListener
 import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import java.util.ArrayDeque
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-/** Flutter bridge for the experimentally verified Fitbit Air haptic path. */
-class FitbitAirPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler {
-    private lateinit var appContext: Context
-    private lateinit var channel: MethodChannel
-    private lateinit var heartRateChannel: EventChannel
-    private lateinit var deviceEventChannel: EventChannel
-    private lateinit var secureEventChannel: EventChannel
-    private var secureEvents: EventChannel.EventSink? = null
+/**
+ * Flutter-free core of the Fitbit Air transport.
+ *
+ * [FitbitAirPlugin] adapts it to Flutter channels; [FitbitAirClient] exposes it
+ * to plain Android/Kotlin apps. All calls must be made on the main thread, and
+ * every reply is delivered on the main thread.
+ */
+class AirEngine(context: Context) {
+    private val appContext: Context = context.applicationContext
+
+    /**
+     * Asks the host to request runtime permissions; it later calls `onResult`
+     * with whether all were granted. Returns false when it cannot ask (no
+     * Activity), which fails the call with `NO_ACTIVITY`, as does having no
+     * requester at all.
+     */
+    var permissionRequester: ((permissions: Array<String>, onResult: (granted: Boolean) -> Unit) -> Boolean)? = null
+
+    private var secureEvents: AirEventSink? = null
     private var secureCapture: AirSecureEventCapture? = null
     private var secureCaptureSeconds = 30
-    private var diagnosticEvents: EventChannel.EventSink? = null
+    private var diagnosticEvents: AirEventSink? = null
     private var eventMonitor: AirEventMonitor? = null
-    private lateinit var connectionChannel: EventChannel
     private var connectionWatcher: AirConnectionWatcher? = null
-    private lateinit var channelActivityChannel: EventChannel
     private var channelMonitor: AirChannelMonitor? = null
     private var warmLink: AirWarmLink? = null
     private var usingWarmLink = false
@@ -77,23 +78,10 @@ class FitbitAirPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHa
     private var sessionRxPackets = 0
     private var warmSilenceCheck: Runnable? = null
     private var warmLinkFallback: String? = null
-    private var heartRateEvents: EventChannel.EventSink? = null
+    private var heartRateEvents: AirEventSink? = null
     private var heartRateStreamGeneration = 0
-    private var activity: Activity? = null
-    private var activityBinding: ActivityPluginBinding? = null
-    private var pendingPermissionResult: MethodChannel.Result? = null
-    private var pendingAction: (() -> Unit)? = null
-    private val permissionListener = RequestPermissionsResultListener { requestCode, _, grantResults ->
-        if (requestCode != PERMISSION_REQUEST) return@RequestPermissionsResultListener false
-        val result = pendingPermissionResult
-        pendingPermissionResult = null
-        val action = pendingAction
-        pendingAction = null
-        if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) action?.invoke()
-        else result?.error("BLUETOOTH_PERMISSION", "Nearby devices permission is required.", null)
-        true
-    }
-    private var pendingResult: MethodChannel.Result? = null
+    private var pendingPermissionResult: AirReply? = null
+    private var pendingResult: AirReply? = null
     private val transportOwner = Any()
     private val handler = Handler(Looper.getMainLooper())
     private var gatt: BluetoothGatt? = null
@@ -124,201 +112,190 @@ class FitbitAirPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHa
     private var holdTick: Runnable? = null
     private var channelHoldOutcome: String? = null
 
-    override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-        appContext = binding.applicationContext
-        channel = MethodChannel(binding.binaryMessenger, CHANNEL)
-        channel.setMethodCallHandler(this)
-        heartRateChannel = EventChannel(binding.binaryMessenger, "fitbit_air/heart_rate")
-        heartRateChannel.setStreamHandler(object : EventChannel.StreamHandler {
-            override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
-                val address = (arguments as? Map<*, *>)?.get("deviceId") as? String
-                if (address != null && !BluetoothAdapter.checkBluetoothAddress(address)) {
-                    events.error("INVALID_DEVICE", "Select a discovered heart-rate sensor first.", null)
-                    events.endOfStream()
-                    return
-                }
-                if (pendingResult != null || pendingPermissionResult != null || diagnosticEvents != null) {
-                    events.error("BUSY", "Another Bluetooth operation is running.", null)
-                    events.endOfStream()
-                    return
-                }
-                heartRateEvents = events
-                val generation = ++heartRateStreamGeneration
-                val streamResult = object : MethodChannel.Result {
-                    override fun success(result: Any?) { }
-                    override fun error(code: String, message: String?, details: Any?) {
-                        if (heartRateEvents === events) heartRateEvents = null
-                        events.error(code, message, details)
-                        events.endOfStream()
-                    }
-                    override fun notImplemented() = error("INTERNAL", "Heart-rate stream unavailable.", null)
-                }
-                withBluetoothPermission(streamResult) {
-                    if (generation == heartRateStreamGeneration && heartRateEvents === events) {
-                        startOperation(streamResult, Operation.ReadHeartRate, address)
-                    }
-                }
+    /** Streams standard heart-rate measurements from the Air, or from [address]. */
+    fun listenHeartRate(address: String?, events: AirEventSink) {
+        if (address != null && !BluetoothAdapter.checkBluetoothAddress(address)) {
+            events.error("INVALID_DEVICE", "Select a discovered heart-rate sensor first.", null)
+            events.endOfStream()
+            return
+        }
+        if (pendingResult != null || pendingPermissionResult != null || diagnosticEvents != null) {
+            events.error("BUSY", "Another Bluetooth operation is running.", null)
+            events.endOfStream()
+            return
+        }
+        heartRateEvents = events
+        val generation = ++heartRateStreamGeneration
+        val streamResult = object : AirReply {
+            override fun success(value: Any?) { }
+            override fun error(code: String, message: String?, details: Any?) {
+                if (heartRateEvents === events) heartRateEvents = null
+                events.error(code, message, details)
+                events.endOfStream()
             }
-
-            override fun onCancel(arguments: Any?) {
-                heartRateStreamGeneration++
-                heartRateEvents = null
-                if (activeOperation == Operation.ReadHeartRate) {
-                    // Do not emit an error into a stream the consumer cancelled.
-                    pendingResult = null
-                    activeOperation = null
-                    closeTransport()
-                }
+        }
+        withBluetoothPermission(streamResult) {
+            if (generation == heartRateStreamGeneration && heartRateEvents === events) {
+                startOperation(streamResult, Operation.ReadHeartRate, address)
             }
-        })
-        secureEventChannel = EventChannel(binding.binaryMessenger, "fitbit_air/secure_events")
-        secureEventChannel.setStreamHandler(object : EventChannel.StreamHandler {
-            override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
-                if (pendingResult != null || pendingPermissionResult != null || diagnosticEvents != null || secureEvents != null) {
-                    events.error("BUSY", "Another Bluetooth operation is running.", null)
-                    events.endOfStream()
-                    return
-                }
-                val requestedSeconds = (arguments as? Map<*, *>)?.get("durationSeconds") ?: 30
-                if (requestedSeconds !is Int || requestedSeconds !in 30..90) {
-                    events.error("INVALID_ARGUMENT", "durationSeconds must be an integer from 30 to 90.", null)
-                    events.endOfStream()
-                    return
-                }
-                secureCaptureSeconds = requestedSeconds
-                secureEvents = events
-                val reply = object : MethodChannel.Result {
-                    override fun success(result: Any?) {
-                        if (secureEvents === events) {
-                            events.success((result as Map<*, *>) + mapOf("kind" to "complete", "receivedAtMillis" to System.currentTimeMillis()))
-                            secureEvents = null
-                            events.endOfStream()
-                        }
-                    }
-                    override fun error(code: String, message: String?, details: Any?) {
-                        if (secureEvents === events) {
-                            secureEvents = null
-                            events.error(code, message, details)
-                            events.endOfStream()
-                        }
-                    }
-                    override fun notImplemented() = error("INTERNAL", "Secure event capture unavailable.", null)
-                }
-                withBluetoothPermission(reply) {
-                    if (secureEvents === events) startOperation(reply, Operation.CaptureSecureEvents)
-                }
-            }
-            override fun onCancel(arguments: Any?) {
-                secureEvents = null
-                if (activeOperation == Operation.CaptureSecureEvents) {
-                    pendingResult = null
-                    activeOperation = null
-                    closeTransport()
-                }
-            }
-        })
-        connectionChannel = EventChannel(binding.binaryMessenger, "fitbit_air/connection")
-        connectionChannel.setStreamHandler(object : EventChannel.StreamHandler {
-            override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
-                withBluetoothPermission(streamPermissionResult(events)) {
-                    val device = findBondedAir() ?: run {
-                        events.error("AIR_NOT_FOUND", "Pair your Air in Google Health first.", null)
-                        events.endOfStream()
-                        return@withBluetoothPermission
-                    }
-                    connectionWatcher?.close()
-                    connectionWatcher = AirConnectionWatcher(appContext, device) { events.success(it) }
-                        .also { it.start() }
-                }
-            }
-
-            override fun onCancel(arguments: Any?) {
-                connectionWatcher?.close()
-                connectionWatcher = null
-            }
-        })
-        channelActivityChannel = EventChannel(binding.binaryMessenger, "fitbit_air/channel_activity")
-        channelActivityChannel.setStreamHandler(object : EventChannel.StreamHandler {
-            override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
-                withBluetoothPermission(streamPermissionResult(events)) {
-                    val device = findBondedAir() ?: run {
-                        events.error("AIR_NOT_FOUND", "Pair your Air in Google Health first.", null)
-                        events.endOfStream()
-                        return@withBluetoothPermission
-                    }
-                    channelMonitor?.close()
-                    val monitor = AirChannelMonitor(appContext, { events.success(it) }) { code, message ->
-                        events.error(code, message, null)
-                        events.endOfStream()
-                    }
-                    channelMonitor = monitor
-                    monitor.start(device)
-                }
-            }
-
-            override fun onCancel(arguments: Any?) {
-                channelMonitor?.close()
-                channelMonitor = null
-            }
-        })
-        deviceEventChannel = EventChannel(binding.binaryMessenger, "fitbit_air/device_events")
-        deviceEventChannel.setStreamHandler(object : EventChannel.StreamHandler {
-            override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
-                if (pendingResult != null || pendingPermissionResult != null || diagnosticEvents != null) {
-                    events.error("BUSY", "Another Bluetooth operation is running.", null)
-                    events.endOfStream()
-                    return
-                }
-                diagnosticEvents = events
-                val permissionResult = object : MethodChannel.Result {
-                    override fun success(result: Any?) { }
-                    override fun error(code: String, message: String?, details: Any?) {
-                        if (diagnosticEvents === events) {
-                            eventMonitor?.close()
-                            eventMonitor = null
-                            diagnosticEvents = null
-                            AirTransportLease.release(transportOwner)
-                        }
-                        events.error(code, message, details)
-                        events.endOfStream()
-                    }
-                    override fun notImplemented() = error("INTERNAL", "Diagnostic events unavailable.", null)
-                }
-                withBluetoothPermission(permissionResult) {
-                    if (diagnosticEvents !== events) return@withBluetoothPermission
-                    val device = findBondedAir()
-                    if (device == null) {
-                        permissionResult.error("AIR_NOT_FOUND", "Pair your Air in Google Health first.", null)
-                    } else {
-                        if (!AirTransportLease.tryAcquire(transportOwner)) {
-                            permissionResult.error("BUSY", "Another Flutter engine owns the Bluetooth transport.", null)
-                            return@withBluetoothPermission
-                        }
-                        val monitor = AirEventMonitor(appContext, { event ->
-                            if (diagnosticEvents === events) events.success(event)
-                        }, { code, message -> permissionResult.error(code, message, null) })
-                        eventMonitor = monitor
-                        try {
-                            monitor.start(device)
-                        } catch (error: Exception) {
-                            permissionResult.error("EVENT_CONNECT", error.message ?: "Could not start diagnostic connection.", null)
-                        }
-                    }
-                }
-            }
-
-            override fun onCancel(arguments: Any?) {
-                val wasActive = diagnosticEvents != null
-                diagnosticEvents = null
-                eventMonitor?.close()
-                eventMonitor = null
-                if (wasActive) AirTransportLease.release(transportOwner)
-            }
-        })
+        }
     }
 
-    override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
-        when (call.method) {
+    fun cancelHeartRate() {
+        heartRateStreamGeneration++
+        heartRateEvents = null
+        if (activeOperation == Operation.ReadHeartRate) {
+            // Do not emit an error into a stream the consumer cancelled.
+            pendingResult = null
+            activeOperation = null
+            closeTransport()
+        }
+    }
+
+    /** Research capture of secure device events for [durationSeconds] (30-90). */
+    fun listenSecureEvents(durationSeconds: Int, events: AirEventSink) {
+        if (pendingResult != null || pendingPermissionResult != null || diagnosticEvents != null || secureEvents != null) {
+            events.error("BUSY", "Another Bluetooth operation is running.", null)
+            events.endOfStream()
+            return
+        }
+        if (durationSeconds !in 30..90) {
+            events.error("INVALID_ARGUMENT", "durationSeconds must be an integer from 30 to 90.", null)
+            events.endOfStream()
+            return
+        }
+        secureCaptureSeconds = durationSeconds
+        secureEvents = events
+        val reply = object : AirReply {
+            override fun success(value: Any?) {
+                if (secureEvents === events) {
+                    events.success((value as Map<*, *>) + mapOf("kind" to "complete", "receivedAtMillis" to System.currentTimeMillis()))
+                    secureEvents = null
+                    events.endOfStream()
+                }
+            }
+            override fun error(code: String, message: String?, details: Any?) {
+                if (secureEvents === events) {
+                    secureEvents = null
+                    events.error(code, message, details)
+                    events.endOfStream()
+                }
+            }
+        }
+        withBluetoothPermission(reply) {
+            if (secureEvents === events) startOperation(reply, Operation.CaptureSecureEvents)
+        }
+    }
+
+    fun cancelSecureEvents() {
+        secureEvents = null
+        if (activeOperation == Operation.CaptureSecureEvents) {
+            pendingResult = null
+            activeOperation = null
+            closeTransport()
+        }
+    }
+
+    /** Passive connection state of the bonded Air. */
+    fun listenConnection(events: AirEventSink) {
+        withBluetoothPermission(streamPermissionResult(events)) {
+            val device = findBondedAir() ?: run {
+                events.error("AIR_NOT_FOUND", "Pair your Air in Google Health first.", null)
+                events.endOfStream()
+                return@withBluetoothPermission
+            }
+            connectionWatcher?.close()
+            connectionWatcher = AirConnectionWatcher(appContext, device) { events.success(it) }
+                .also { it.start() }
+        }
+    }
+
+    fun cancelConnection() {
+        connectionWatcher?.close()
+        connectionWatcher = null
+    }
+
+    /** Passive activity on the shared tracker channel (Google Health syncs). */
+    fun listenChannelActivity(events: AirEventSink) {
+        withBluetoothPermission(streamPermissionResult(events)) {
+            val device = findBondedAir() ?: run {
+                events.error("AIR_NOT_FOUND", "Pair your Air in Google Health first.", null)
+                events.endOfStream()
+                return@withBluetoothPermission
+            }
+            channelMonitor?.close()
+            val monitor = AirChannelMonitor(appContext, { events.success(it) }) { code, message ->
+                events.error(code, message, null)
+                events.endOfStream()
+            }
+            channelMonitor = monitor
+            monitor.start(device)
+        }
+    }
+
+    fun cancelChannelActivity() {
+        channelMonitor?.close()
+        channelMonitor = null
+    }
+
+    /** Diagnostic device events (research). */
+    fun listenDeviceEvents(events: AirEventSink) {
+        if (pendingResult != null || pendingPermissionResult != null || diagnosticEvents != null) {
+            events.error("BUSY", "Another Bluetooth operation is running.", null)
+            events.endOfStream()
+            return
+        }
+        diagnosticEvents = events
+        val permissionResult = object : AirReply {
+            override fun success(value: Any?) { }
+            override fun error(code: String, message: String?, details: Any?) {
+                if (diagnosticEvents === events) {
+                    eventMonitor?.close()
+                    eventMonitor = null
+                    diagnosticEvents = null
+                    AirTransportLease.release(transportOwner)
+                }
+                events.error(code, message, details)
+                events.endOfStream()
+            }
+        }
+        withBluetoothPermission(permissionResult) {
+            if (diagnosticEvents !== events) return@withBluetoothPermission
+            val device = findBondedAir()
+            if (device == null) {
+                permissionResult.error("AIR_NOT_FOUND", "Pair your Air in Google Health first.", null)
+            } else {
+                if (!AirTransportLease.tryAcquire(transportOwner)) {
+                    permissionResult.error("BUSY", "Another Flutter engine owns the Bluetooth transport.", null)
+                    return@withBluetoothPermission
+                }
+                val monitor = AirEventMonitor(appContext, { event ->
+                    if (diagnosticEvents === events) events.success(event)
+                }, { code, message -> permissionResult.error(code, message, null) })
+                eventMonitor = monitor
+                try {
+                    monitor.start(device)
+                } catch (error: Exception) {
+                    permissionResult.error("EVENT_CONNECT", error.message ?: "Could not start diagnostic connection.", null)
+                }
+            }
+        }
+    }
+
+    fun cancelDeviceEvents() {
+        val wasActive = diagnosticEvents != null
+        diagnosticEvents = null
+        eventMonitor?.close()
+        eventMonitor = null
+        if (wasActive) AirTransportLease.release(transportOwner)
+    }
+
+    /**
+     * Runs one named operation (the same names as the Dart API's method
+     * channel) and replies once on [result]. Returns false for an unknown method.
+     */
+    fun handle(method: String, args: Map<String, Any?>, result: AirReply): Boolean {
+        when (method) {
             "transportDiagnostics" -> result.success(AirTransportDiagnostics.snapshot())
             "cancelOperation" -> {
                 if (diagnosticEvents != null) {
@@ -332,14 +309,14 @@ class FitbitAirPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHa
                     activeOperation == Operation.SinglePulse || activeOperation is Operation.Tap ||
                     activeOperation is Operation.SetHapticIntensity) {
                     result.error("CANNOT_CANCEL_WRITE", "Wait for the haptic write and verification to finish.", null)
-                    return
+                    return true
                 }
                 finishError("CANCELLED", "Fitbit Air operation cancelled.")
                 result.success(null)
             }
             "scanHeartRateDevices" -> withBluetoothPermission(result, needsScan = true) { scanHeartRateDevices(result) }
             "readHeartRate" -> withBluetoothPermission(result) {
-                val address = call.argument<String>("deviceId")
+                val address = args["deviceId"] as? String
                 if (address != null && !BluetoothAdapter.checkBluetoothAddress(address)) {
                     result.error("INVALID_DEVICE", "Select a discovered heart-rate sensor first.", null)
                 } else startOperation(result, Operation.ReadHeartRate, address)
@@ -357,7 +334,7 @@ class FitbitAirPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHa
                 startOperation(result, Operation.ReadHapticIntensity)
             }
             "keepLinkWarm" -> {
-                val enabled = call.argument<Boolean>("enabled") == true
+                val enabled = args["enabled"] == true
                 if (!enabled) {
                     stopWarmLink()
                     result.success(null)
@@ -388,7 +365,7 @@ class FitbitAirPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHa
                 startOperation(result, Operation.ProbeReadOnlyResources)
             }
             "setHapticIntensity" -> {
-                val intensity = call.argument<Int>("intensity")
+                val intensity = args["intensity"] as? Int
                 if (intensity !in setOf(2, 3)) {
                     result.error("INVALID_INTENSITY", "Haptic intensity must be 2 (low) or 3 (high).", null)
                 } else {
@@ -401,28 +378,43 @@ class FitbitAirPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHa
                 startOperation(result, Operation.SinglePulse)
             }
             "tap" -> {
-                val intensity = call.argument<Int>("intensity")
-                if (intensity != null && intensity !in setOf(2, 3)) {
+                val intensity = args["intensity"] as? Int
+                if (args["intensity"] != null && intensity !in setOf(2, 3)) {
                     result.error("INVALID_INTENSITY", "Haptic intensity must be 2 (low) or 3 (high).", null)
                 } else {
                     withBluetoothPermission(result) { startOperation(result, Operation.Tap(intensity)) }
                 }
             }
-            else -> result.notImplemented()
+            else -> return false
         }
+        return true
+    }
+
+    /** Stops every stream and operation and releases the link. */
+    fun dispose() {
+        secureEvents = null
+        heartRateEvents = null
+        connectionWatcher?.close()
+        connectionWatcher = null
+        channelMonitor?.close()
+        channelMonitor = null
+        stopWarmLink()
+        diagnosticEvents = null
+        eventMonitor?.close()
+        eventMonitor = null
+        closeTransport()
     }
 
     /** Reports permission failures of a passive stream as stream errors. */
-    private fun streamPermissionResult(events: EventChannel.EventSink) = object : MethodChannel.Result {
-        override fun success(result: Any?) { }
+    private fun streamPermissionResult(events: AirEventSink) = object : AirReply {
+        override fun success(value: Any?) { }
         override fun error(code: String, message: String?, details: Any?) {
             events.error(code, message, details)
             events.endOfStream()
         }
-        override fun notImplemented() = error("INTERNAL", "Stream unavailable.", null)
     }
 
-    private fun withBluetoothPermission(result: MethodChannel.Result, needsScan: Boolean = false, action: () -> Unit) {
+    private fun withBluetoothPermission(result: AirReply, needsScan: Boolean = false, action: () -> Unit) {
         val permissions = if (Build.VERSION.SDK_INT >= 31) {
             if (needsScan) arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN)
             else arrayOf(Manifest.permission.BLUETOOTH_CONNECT)
@@ -431,22 +423,26 @@ class FitbitAirPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHa
             action()
             return
         }
-        val host = activity
-        if (host == null) {
-            result.error("NO_ACTIVITY", "Attach the Flutter view before calling Fitbit Air.", null)
-            return
-        }
-        if (pendingPermissionResult != null) {
+        val requester = permissionRequester
+        if (requester != null && pendingPermissionResult != null) {
             result.error("BUSY", "A Bluetooth permission request is already pending.", null)
             return
         }
         pendingPermissionResult = result
-        pendingAction = action
-        host.requestPermissions(permissions, PERMISSION_REQUEST)
+        val asked = requester?.invoke(permissions) { granted ->
+            val pending = pendingPermissionResult
+            pendingPermissionResult = null
+            if (granted) action()
+            else pending?.error("BLUETOOTH_PERMISSION", "Nearby devices permission is required.", null)
+        } == true
+        if (!asked) {
+            pendingPermissionResult = null
+            result.error("NO_ACTIVITY", "Attach an Activity (or grant Nearby devices) before calling Fitbit Air.", null)
+        }
     }
 
     @SuppressLint("MissingPermission")
-    private fun scanHeartRateDevices(result: MethodChannel.Result) {
+    private fun scanHeartRateDevices(result: AirReply) {
         if (pendingResult != null || diagnosticEvents != null) {
             result.error("BUSY", "A Fitbit Air operation is already running.", null)
             return
@@ -502,7 +498,7 @@ class FitbitAirPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHa
     }
 
     @SuppressLint("MissingPermission")
-    private fun startOperation(result: MethodChannel.Result, operation: Operation, deviceId: String? = null) {
+    private fun startOperation(result: AirReply, operation: Operation, deviceId: String? = null) {
         if (pendingResult != null || diagnosticEvents != null) {
             result.error("BUSY", "A Fitbit Air operation is already running.", null)
             return
@@ -1565,45 +1561,7 @@ class FitbitAirPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHa
         cleanupOperation = null
     }
 
-    override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-        channel.setMethodCallHandler(null)
-        secureEventChannel.setStreamHandler(null)
-        secureEvents = null
-        heartRateChannel.setStreamHandler(null)
-        heartRateEvents = null
-        deviceEventChannel.setStreamHandler(null)
-        connectionChannel.setStreamHandler(null)
-        connectionWatcher?.close()
-        connectionWatcher = null
-        channelActivityChannel.setStreamHandler(null)
-        channelMonitor?.close()
-        channelMonitor = null
-        stopWarmLink()
-        diagnosticEvents = null
-        eventMonitor?.close()
-        eventMonitor = null
-        closeTransport()
-    }
-
-    override fun onAttachedToActivity(binding: ActivityPluginBinding) {
-        activity = binding.activity
-        activityBinding = binding
-        binding.addRequestPermissionsResultListener(permissionListener)
-    }
-
-    override fun onDetachedFromActivityForConfigChanges() = detachActivity()
-    override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) = onAttachedToActivity(binding)
-    override fun onDetachedFromActivity() = detachActivity()
-
-    private fun detachActivity() {
-        activityBinding?.removeRequestPermissionsResultListener(permissionListener)
-        activityBinding = null
-        activity = null
-    }
-
     companion object {
-        private const val CHANNEL = "fitbit_air"
-        private const val PERMISSION_REQUEST = 49217
         private const val OPERATION_TIMEOUT_MS = 45_000L
         private const val HANDOFF_TIMEOUT_MS = 10_000L
         private const val HANDSHAKE_RETRY_MS = 6_000L
