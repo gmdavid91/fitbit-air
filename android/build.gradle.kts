@@ -42,9 +42,7 @@ android {
 
     sourceSets {
         getByName("main") {
-            // src/main holds the Flutter-free transport (also built by ../kotlin);
-            // src/flutter holds only the Flutter bridge.
-            java.srcDirs("src/main/kotlin", "src/flutter/kotlin")
+            java.srcDirs("src/main/kotlin")
         }
         getByName("test") {
             java.srcDirs("src/test/kotlin")

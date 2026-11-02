@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -52,6 +53,18 @@ class MainActivity : ComponentActivity() {
         button("Pattern: rest over") { air.play(AirPattern.REST_OVER); "Played REST_OVER" }
         button("Pattern: gentle wake (~2 min)") { air.play(AirPattern.GENTLE_WAKE); "Played GENTLE_WAKE" }
         button("Pattern: alert") { air.play(AirPattern.ALERT); "Played ALERT" }
+        val custom = EditText(this).apply {
+            hint = "Custom pattern: t = tap, d = double, number = seconds"
+            setText("t 5 d 5 t")
+            isSingleLine = true
+        }
+        column.addView(custom, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        button("Play custom pattern") {
+            val pattern = try { AirPattern.parse(custom.text.toString()) }
+                catch (error: IllegalArgumentException) { return@button error.message ?: "Invalid pattern" }
+            air.play(pattern)
+            "Played ${pattern.steps.size} steps"
+        }
         button("Battery") { air.readBattery().let { "Battery ${it.percent}% charging=${it.onCharger}" } }
         button("Device info") { air.readDeviceInfo().entries.joinToString { "${it.key}=${it.value}" } }
         column.addView(Button(this).apply {

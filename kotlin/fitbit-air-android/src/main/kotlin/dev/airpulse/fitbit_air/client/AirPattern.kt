@@ -28,6 +28,21 @@ class AirPattern(val steps: List<Step>) {
     companion object {
         fun build(block: Builder.() -> Unit) = Builder().apply(block).build()
 
+        /**
+         * Parses a short text pattern for quick experiments: `t` = tap,
+         * `d` = double tap, a number = wait that many seconds. Separators are
+         * spaces or commas, e.g. `"t 5 d 3 t"`.
+         */
+        fun parse(text: String): AirPattern = build {
+            for (token in text.lowercase().split(' ', ',').filter { it.isNotBlank() }) when {
+                token == "t" || token == "tap" -> tap()
+                token == "d" || token == "double" -> doubleTap()
+                token.removeSuffix("s").toDoubleOrNull() != null ->
+                    waitMillis((token.removeSuffix("s").toDouble() * 1000).toLong())
+                else -> throw IllegalArgumentException("Unknown pattern step '$token' (use t, d or seconds).")
+            }
+        }
+
         /** One pulse: start the next set. */
         val NEXT_SET = build { tap() }
 

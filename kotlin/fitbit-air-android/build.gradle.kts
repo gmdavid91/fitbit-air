@@ -1,6 +1,6 @@
 // Plain Android (no Flutter) build of the same transport the Flutter plugin uses.
-// It compiles the shared sources in ../android/src/main (the Flutter bridge
-// lives in src/flutter and is not included), plus the Kotlin client API here.
+// It compiles the shared sources in ../android/src/main/kotlin, except the
+// Flutter bridge (FitbitAirPlugin.kt), plus the Kotlin client API here.
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
@@ -28,7 +28,7 @@ android {
 
     sourceSets {
         getByName("main") {
-            java.srcDirs(File(shared, "kotlin"), "src/main/kotlin")
+            java.srcDirs(layout.buildDirectory.dir("shared/kotlin"), "src/main/kotlin")
             manifest.srcFile(File(shared, "AndroidManifest.xml"))
             jniLibs.srcDirs(File(shared, "jniLibs"))
         }
@@ -40,6 +40,14 @@ android {
         }
     }
 }
+
+// Copies the shared transport sources without the class that needs the
+// Flutter embedding. Flutter requires that class to stay in src/main.
+val syncSharedSources by tasks.registering(Sync::class) {
+    from(File(shared, "kotlin")) { exclude("**/FitbitAirPlugin.kt") }
+    into(layout.buildDirectory.dir("shared/kotlin"))
+}
+tasks.named("preBuild") { dependsOn(syncSharedSources) }
 
 kotlin {
     compilerOptions {

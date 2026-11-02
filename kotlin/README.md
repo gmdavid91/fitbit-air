@@ -1,8 +1,8 @@
 # fitbit-air for Kotlin (no Flutter)
 
 The same Fitbit Air transport as the Flutter plugin, for plain Android apps.
-It compiles the shared sources in `android/src/main` (the Flutter bridge lives in
-`android/src/flutter` and is left out) and adds a small coroutine API.
+It compiles the shared sources in `android/src/main/kotlin`, without the Flutter
+bridge (`FitbitAirPlugin.kt`), and adds a small coroutine API.
 
 > [!WARNING]
 > Experimental, like the rest of this repository: private, firmware-specific
@@ -28,7 +28,7 @@ air.close()
 | `tap()` / `tap(intensity)` | One pulse. With an intensity different from the wearer's, the Air keeps it. |
 | `vibrate()` | Two pulses; strength restored and verified. |
 | `pulse()` | One pulse that switches low/high. |
-| `play(pattern)` | Steps of `tap`, `doubleTap` and `waitMillis`. Presets: `NEXT_SET`, `REST_OVER`, `GENTLE_WAKE`, `ALERT`. |
+| `play(pattern)` | Steps of `tap`, `doubleTap` and `waitMillis`. Presets: `NEXT_SET`, `REST_OVER`, `GENTLE_WAKE`, `ALERT`. `AirPattern.parse("t 5 d")` for quick tests. |
 | `heartRate()` | `Flow` from the standard Heart Rate Service. Haptics fail with `BUSY` while it runs. |
 | `readBattery()`, `readDeviceInfo()`, `isAirPaired()`, `isAirConnected()` | Status. |
 | `keepLinkWarm(true)` | Keeps the link open so haptics start faster. |
