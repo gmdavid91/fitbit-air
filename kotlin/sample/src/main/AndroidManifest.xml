@@ -2,7 +2,7 @@
     <!-- No INTERNET permission: everything stays between the phone and the Air. -->
     <application
         android:allowBackup="false"
-        android:label="Air Kotlin Sample"
+        android:label="@string/app_name"
         android:theme="@android:style/Theme.Material.Light">
         <activity
             android:name=".MainActivity"

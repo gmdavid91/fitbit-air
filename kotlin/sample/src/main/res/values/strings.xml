@@ -1,0 +1,38 @@
+<resources>
+    <string name="app_name">Air Kotlin Sample</string>
+    <string name="paired">Is the Air paired?</string>
+    <string name="tap">Tap (1 pulse)</string>
+    <string name="vibrate">Vibrate (2 pulses)</string>
+    <string name="pulse">Pulse (switch strength)</string>
+    <string name="next_set">Pattern: next set</string>
+    <string name="rest_over">Pattern: rest over</string>
+    <string name="gentle_wake">Pattern: gentle wake (~2 min)</string>
+    <string name="alert">Pattern: alert</string>
+    <string name="custom_hint">Custom pattern: t = tap, d = double, number = seconds</string>
+    <string name="play_custom">Play custom pattern</string>
+    <string name="battery">Battery</string>
+    <string name="device_info">Device info</string>
+    <string name="hr_toggle">Live heart rate: start / stop</string>
+    <string name="raw_test">Test: tap while a separate heart-rate connection is open</string>
+    <string name="intro">Pair the Air in Google Health first. Each haptic takes a few seconds; the timer shows how long.</string>
+    <string name="busy">Wait: another operation is running.</string>
+    <string name="stop_hr_first">Stop live heart rate first (one channel at a time).</string>
+    <string name="perm_ok">Nearby devices permission granted.</string>
+    <string name="perm_denied">Nearby devices permission denied.</string>
+    <string name="hr_subscribing">Heart rate: subscribing…</string>
+    <string name="hr_stopped">Heart rate stopped.</string>
+    <string name="failed">Failed: %s</string>
+    <string name="took">%1$s · ⏱ %2$.1f s</string>
+    <string name="done">Done</string>
+    <string name="paired_result">Paired: %s</string>
+    <string name="tap_result">Tap at %s</string>
+    <string name="strength_now">Strength now %s</string>
+    <string name="played">Played %d steps</string>
+    <string name="battery_result">Battery %1$d%% · charging %2$s</string>
+    <string name="raw_opening">Opening a separate heart-rate connection…</string>
+    <string name="raw_no_air">No bonded Fitbit Air found.</string>
+    <string name="raw_no_hr">The separate connection received no heart rate in 15 s.</string>
+    <string name="raw_tapping">%d heart-rate samples received. Tapping now…</string>
+    <string name="raw_result">Tap %1$s in %2$.1f s. Heart-rate samples during and after the tap: %3$d. Did the Air vibrate?</string>
+    <string name="ok">OK</string>
+</resources>

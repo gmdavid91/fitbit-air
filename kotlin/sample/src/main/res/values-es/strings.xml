@@ -1,0 +1,38 @@
+<resources>
+    <string name="app_name">Air Kotlin Sample</string>
+    <string name="paired">¿Está emparejada la Air?</string>
+    <string name="tap">Toque (1 pulso)</string>
+    <string name="vibrate">Vibrar (2 pulsos)</string>
+    <string name="pulse">Pulso (cambia la intensidad)</string>
+    <string name="next_set">Patrón: siguiente serie</string>
+    <string name="rest_over">Patrón: fin del descanso</string>
+    <string name="gentle_wake">Patrón: despertar suave (~2 min)</string>
+    <string name="alert">Patrón: alerta</string>
+    <string name="custom_hint">Patrón propio: t = toque, d = doble, número = segundos</string>
+    <string name="play_custom">Reproducir patrón propio</string>
+    <string name="battery">Batería</string>
+    <string name="device_info">Información de la pulsera</string>
+    <string name="hr_toggle">Pulso en directo: empezar / parar</string>
+    <string name="raw_test">Prueba: vibrar con el pulso abierto aparte (como BeastCoach)</string>
+    <string name="intro">Empareja antes la Air en Google Health. Cada vibración tarda unos segundos; el cronómetro te dice cuánto.</string>
+    <string name="busy">Espera: hay otra operación en marcha.</string>
+    <string name="stop_hr_first">Para antes el pulso en directo (un canal cada vez).</string>
+    <string name="perm_ok">Permiso de dispositivos cercanos concedido.</string>
+    <string name="perm_denied">Permiso de dispositivos cercanos denegado.</string>
+    <string name="hr_subscribing">Pulso: conectando…</string>
+    <string name="hr_stopped">Pulso parado.</string>
+    <string name="failed">Error: %s</string>
+    <string name="took">%1$s · ⏱ %2$.1f s</string>
+    <string name="done">Hecho</string>
+    <string name="paired_result">Emparejada: %s</string>
+    <string name="tap_result">Toque con intensidad %s</string>
+    <string name="strength_now">Intensidad ahora: %s</string>
+    <string name="played">Reproducidos %d pasos</string>
+    <string name="battery_result">Batería %1$d%% · cargando %2$s</string>
+    <string name="raw_opening">Abriendo una conexión de pulso aparte…</string>
+    <string name="raw_no_air">No encuentro ninguna Fitbit Air emparejada.</string>
+    <string name="raw_no_hr">La conexión aparte no recibió pulso en 15 s.</string>
+    <string name="raw_tapping">Recibidas %d muestras de pulso. Vibrando ahora…</string>
+    <string name="raw_result">Toque %1$s en %2$.1f s. Muestras de pulso durante y después del toque: %3$d. ¿Ha vibrado la Air?</string>
+    <string name="ok">correcto</string>
+</resources>
