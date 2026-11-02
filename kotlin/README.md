@@ -28,6 +28,7 @@ air.close()
 | `tap()` / `tap(intensity)` | One pulse. With an intensity different from the wearer's, the Air keeps it. |
 | `vibrate()` | Two pulses; strength restored and verified. |
 | `pulse()` | One pulse that switches low/high. |
+| `burst(pulses, gapMillis)` | Experimental: many buzzes in one session (~alarm). Even count, strength restored. |
 | `play(pattern)` | Steps of `tap`, `doubleTap` and `waitMillis`. Presets: `NEXT_SET`, `REST_OVER`, `GENTLE_WAKE`, `ALERT`. `AirPattern.parse("t 5 d")` for quick tests. |
 | `heartRate()` | `Flow` from the standard Heart Rate Service. Haptics fail with `BUSY` while it runs. |
 | `readBattery()`, `readDeviceInfo()`, `isAirPaired()`, `isAirConnected()` | Status. |

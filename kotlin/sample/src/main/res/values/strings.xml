@@ -35,4 +35,9 @@
     <string name="raw_tapping">%d heart-rate samples received. Tapping now…</string>
     <string name="raw_result">Tap %1$s in %2$.1f s. Heart-rate samples during and after the tap: %3$d. Did the Air vibrate?</string>
     <string name="ok">OK</string>
+    <string name="felt">I FEEL IT!</string>
+    <string name="felt_log">👋 Felt %1$.1f s after pressing “%2$s”</string>
+    <string name="felt_nothing">Press a vibration button first.</string>
+    <string name="burst_12">Strong burst: 12 pulses (~7 s)</string>
+    <string name="burst_20">Strong burst: 20 pulses, faster (~8 s)</string>
 </resources>

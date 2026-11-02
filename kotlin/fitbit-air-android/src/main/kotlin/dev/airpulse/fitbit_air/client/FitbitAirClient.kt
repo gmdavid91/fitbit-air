@@ -68,6 +68,15 @@ class FitbitAirClient(context: Context) : AutoCloseable {
     /** Two pulses; the wearer's strength is restored and verified. */
     suspend fun vibrate() { call("vibrate") }
 
+    /**
+     * Experimental: [pulses] buzzes about [gapMillis] apart in one session,
+     * the closest this path gets to an alarm. [pulses] must be even (2-30);
+     * the wearer's strength is restored and verified.
+     */
+    suspend fun burst(pulses: Int = 12, gapMillis: Long = 600) {
+        call("burst", mapOf("pulses" to pulses, "gapMillis" to gapMillis))
+    }
+
     /** One pulse that switches the strength between low and high. */
     suspend fun pulse(): HapticIntensity? = HapticIntensity.of((call("pulse") as Map<*, *>)["currentIntensity"])
 

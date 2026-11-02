@@ -29,6 +29,9 @@ class MainActivity : ComponentActivity() {
     private lateinit var log: TextView
     private var heartRateJob: Job? = null
     private var busy = false
+    /** Start time and label of the last operation, for the "I feel it" button. */
+    private var lastStart = 0L
+    private var lastLabel = ""
 
     private val permissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
         print(getString(if (granted.values.all { it }) R.string.perm_ok else R.string.perm_denied))
@@ -57,6 +60,8 @@ class MainActivity : ComponentActivity() {
         button(R.string.rest_over) { air.play(AirPattern.REST_OVER); done }
         button(R.string.gentle_wake) { air.play(AirPattern.GENTLE_WAKE); done }
         button(R.string.alert) { air.play(AirPattern.ALERT); done }
+        button(R.string.burst_12) { air.burst(12, 600); done }
+        button(R.string.burst_20) { air.burst(20, 400); done }
         val custom = EditText(this).apply {
             hint = getString(R.string.custom_hint)
             setText("t 5 d 5 t")
@@ -78,7 +83,21 @@ class MainActivity : ComponentActivity() {
         }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         log = TextView(this).apply { setTextIsSelectable(true); setPadding(0, 24, 0, 0) }
         column.addView(log)
-        setContentView(ScrollView(this).apply { addView(column) })
+        val felt = Button(this).apply {
+            text = getString(R.string.felt)
+            textSize = 22f
+            minHeight = 200
+            setOnClickListener {
+                if (lastStart == 0L) print(getString(R.string.felt_nothing))
+                else print(getString(R.string.felt_log, (SystemClock.elapsedRealtime() - lastStart) / 1000.0, lastLabel))
+            }
+        }
+        setContentView(LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(16, 16, 16, 0)
+            addView(felt, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+            addView(ScrollView(this@MainActivity).apply { addView(column) }, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+        })
 
         val missing = FitbitAirClient.requiredPermissions.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (missing.isNotEmpty()) permissions.launch(missing.toTypedArray())
@@ -91,6 +110,8 @@ class MainActivity : ComponentActivity() {
         busy = true
         print("$label…")
         val started = SystemClock.elapsedRealtime()
+        lastStart = started
+        lastLabel = label
         fun seconds() = (SystemClock.elapsedRealtime() - started) / 1000.0
         lifecycleScope.launch {
             try { print(getString(R.string.took, action(), seconds())) }

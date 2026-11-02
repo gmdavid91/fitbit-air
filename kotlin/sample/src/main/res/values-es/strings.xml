@@ -35,4 +35,9 @@
     <string name="raw_tapping">Recibidas %d muestras de pulso. Vibrando ahora…</string>
     <string name="raw_result">Toque %1$s en %2$.1f s. Muestras de pulso durante y después del toque: %3$d. ¿Ha vibrado la Air?</string>
     <string name="ok">correcto</string>
+    <string name="felt">¡LO NOTO!</string>
+    <string name="felt_log">👋 Notado a %1$.1f s de pulsar «%2$s»</string>
+    <string name="felt_nothing">Pulsa antes un botón de vibración.</string>
+    <string name="burst_12">Ráfaga fuerte: 12 pulsos (~7 s)</string>
+    <string name="burst_20">Ráfaga fuerte: 20 pulsos, más rápida (~8 s)</string>
 </resources>

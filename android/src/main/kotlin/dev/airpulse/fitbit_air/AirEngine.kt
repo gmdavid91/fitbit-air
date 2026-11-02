@@ -307,6 +307,7 @@ class AirEngine(context: Context) {
                 }
                 if (activeOperation == Operation.PreviewHaptic ||
                     activeOperation == Operation.SinglePulse || activeOperation is Operation.Tap ||
+                    activeOperation is Operation.Burst ||
                     activeOperation is Operation.SetHapticIntensity) {
                     result.error("CANNOT_CANCEL_WRITE", "Wait for the haptic write and verification to finish.", null)
                     return true
@@ -376,6 +377,14 @@ class AirEngine(context: Context) {
             }
             "pulse" -> withBluetoothPermission(result) {
                 startOperation(result, Operation.SinglePulse)
+            }
+            "burst" -> {
+                val pulses = args["pulses"] as? Int
+                val gap = (args["gapMillis"] as? Number)?.toLong()
+                if (pulses == null || pulses !in 2..30 || pulses % 2 != 0 || gap == null || gap !in 300..3000 ||
+                    pulses * gap > MAX_BURST_MS) {
+                    result.error("INVALID_ARGUMENT", "pulses must be even (2-30), gapMillis 300-3000, total at most ${MAX_BURST_MS / 1000} s.", null)
+                } else withBluetoothPermission(result) { startOperation(result, Operation.Burst(pulses, gap)) }
             }
             "tap" -> {
                 val intensity = args["intensity"] as? Int
@@ -531,6 +540,7 @@ class AirEngine(context: Context) {
             is Operation.SetHapticIntensity -> "SetHapticIntensity"
             Operation.SinglePulse -> "SinglePulse"
             is Operation.Tap -> "Tap"
+            is Operation.Burst -> "Burst"
         }
         sessionStarted = false
         handshakeAttempts = 0
@@ -1133,6 +1143,7 @@ class AirEngine(context: Context) {
             is Operation.SetHapticIntensity -> runSetHapticIntensity(coap, operation.intensity)
             Operation.SinglePulse -> runSinglePulse(coap)
             is Operation.Tap -> runTap(coap, operation.intensity)
+            is Operation.Burst -> runBurst(coap, operation.pulses, operation.gapMillis)
             null -> finishSessionError(coap, "INTERNAL", "No Fitbit Air operation was selected.")
         }
     }
@@ -1327,6 +1338,37 @@ class AirEngine(context: Context) {
         }.subscribe({ original ->
             finishSessionSuccess(coap, mapOf("originalIntensity" to original, "restored" to true, "verified" to true))
         }, { error -> finishSessionError(coap, "HAPTIC_FAILED", error.message ?: "Haptic command failed; check Google Health settings." ) }))
+    }
+
+    /**
+     * Experimental: [pulses] intensity changes in one session, [gapMillis]
+     * apart, so the Air buzzes repeatedly (the closest to an alarm this path
+     * allows). The count is even, so the wearer's strength ends where it began;
+     * it is read back and verified, and restored on any failure.
+     */
+    private fun runBurst(coap: CoapEndpoint, pulses: Int, gapMillis: Long) {
+        disposables.add(readIntensity(coap).flatMap { original ->
+            val alternate = if (original == 2) 3 else 2
+            var chain: Single<Boolean> = writeIntensity(coap, alternate)
+            for (step in 2..pulses) {
+                val target = if (step % 2 == 0) original else alternate
+                chain = chain.flatMap { Single.timer(gapMillis, TimeUnit.MILLISECONDS) }
+                    .flatMap { writeIntensity(coap, target) }
+            }
+            chain.flatMap { readIntensity(coap) }.map { verified ->
+                if (verified != original) throw IllegalStateException("Original haptic setting was not verified restored.")
+                original
+            }.onErrorResumeNext { burstError: Throwable ->
+                writeIntensity(coap, original).retry(2).onErrorResumeNext { restoreError: Throwable ->
+                    Single.error(IllegalStateException(
+                        "Burst and restoration failed. Check vibration intensity in Google Health.", restoreError))
+                }.flatMap<Int> {
+                    Single.error(IllegalStateException("Burst failed; the prior setting was restored but not verified.", burstError))
+                }
+            }
+        }.subscribe({ original ->
+            finishSessionSuccess(coap, mapOf("originalIntensity" to original, "pulses" to pulses, "restored" to true, "verified" to true))
+        }, { error -> finishSessionError(coap, "HAPTIC_BURST_FAILED", error.message ?: "Haptic burst failed.") }))
     }
 
     private fun writeIntensity(coap: CoapEndpoint, intensity: Int): Single<Boolean> =
@@ -1574,6 +1616,8 @@ class AirEngine(context: Context) {
         /** DTLS error observed when Google Health answered the same handshake. */
         private const val LOST_HANDSHAKE_RACE = -1
         private const val MAX_HANDSHAKE_ATTEMPTS = 2
+        /** Keeps a burst well inside the operation timeout. */
+        private const val MAX_BURST_MS = 30_000L
         private val TRACKER_SERVICE = UUID.fromString("abbaff00-e56a-484c-b832-8b17cf6cbfe8")
         private val TRACKER_TX = UUID.fromString("abbaff01-e56a-484c-b832-8b17cf6cbfe8")
         private val TRACKER_RX = UUID.fromString("abbaff02-e56a-484c-b832-8b17cf6cbfe8")
@@ -1604,5 +1648,6 @@ class AirEngine(context: Context) {
         data class SetHapticIntensity(val intensity: Int) : Operation
         data object SinglePulse : Operation
         data class Tap(val intensity: Int?) : Operation
+        data class Burst(val pulses: Int, val gapMillis: Long) : Operation
     }
 }
