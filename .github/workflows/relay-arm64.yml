@@ -3,6 +3,9 @@ name: Air Relay (arm64 test build)
 # Small arm64-only Air Relay APK for sideload testing (fits messaging limits).
 on:
   workflow_dispatch:
+  push:
+    branches: [android-core]
+    paths: ['android/src/main/**', 'example/**', '.github/workflows/relay-arm64.yml']
 
 jobs:
   build:
