@@ -45,11 +45,13 @@ takes a few seconds, so `waitMillis` is a minimum gap, not an exact rhythm.
 ## Build
 
 ```bash
-gradle -p kotlin :fitbit-air-android:assembleRelease :sample:assembleDebug
+gradle -p kotlin :fitbit-air-android:assembleRelease :sample:assembleDebug :airbuzz:testDebugUnitTest :airbuzz:assembleDebug
 ```
 
-CI (`.github/workflows/kotlin.yml`) builds the AAR and the sample APK
-(`sample/`), a one-screen test bench with a button per operation.
+CI (`.github/workflows/kotlin.yml`) builds the AAR, the sample APK
+(`sample/`, a one-screen test bench with a button per operation) and
+[Air Buzz](airbuzz/README.md) (`airbuzz/`, an alarm / interval / heart-rate
+zone app), and runs Air Buzz's unit tests.
 
 ## Status
 

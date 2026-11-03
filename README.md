@@ -47,6 +47,15 @@ cd example
 flutter run
 ```
 
+## Air Buzz
+
+[`kotlin/airbuzz`](kotlin/airbuzz/) is a small, plain-Android app (no Flutter)
+built on the [Kotlin library](kotlin/): a **silent alarm** with an optional
+smart-wake window, an **interval timer** (HIIT, EMOM, Tabata, custom) and
+**heart-rate zone alerts**, all as buzzes on the Air. No accounts, no internet
+permission. See its [README](kotlin/airbuzz/README.md) for install steps and
+limits.
+
 ## Install
 
 ```bash

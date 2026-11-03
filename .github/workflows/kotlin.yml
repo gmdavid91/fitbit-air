@@ -22,8 +22,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.14'
-      - name: Build the Flutter-free library and the sample app
-        run: gradle -p kotlin :fitbit-air-android:assembleRelease :sample:assembleDebug --console=plain
+      - name: Build the Flutter-free library, the sample app and Air Buzz
+        run: gradle -p kotlin :fitbit-air-android:assembleRelease :sample:assembleDebug :airbuzz:testDebugUnitTest :airbuzz:assembleDebug --console=plain
+      - name: Air Buzz unit test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: airbuzz-test-report
+          path: kotlin/airbuzz/build/reports/tests/
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         with:
           name: fitbit-air-android-aar
@@ -33,4 +40,9 @@ jobs:
         with:
           name: air-kotlin-sample-apk
           path: kotlin/sample/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: airbuzz-apk
+          path: kotlin/airbuzz/build/outputs/apk/debug/*.apk
           if-no-files-found: error

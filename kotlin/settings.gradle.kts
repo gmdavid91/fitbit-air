@@ -14,4 +14,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "fitbit-air-kotlin"
-include(":fitbit-air-android", ":sample")
+include(":fitbit-air-android", ":sample", ":airbuzz")

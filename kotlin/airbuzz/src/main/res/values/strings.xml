@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Air Buzz</string>
+    <string name="tab_alarm">Alarm</string>
+    <string name="tab_intervals">Intervals</string>
+    <string name="tab_zones">HR zones</string>
+    <string name="tab_test">Test buzz</string>
+
+    <string name="allow">Allow</string>
+    <string name="open_settings">Open settings</string>
+    <string name="start">Start</string>
+    <string name="stop">Stop</string>
+    <string name="close">Close</string>
+    <string name="off">Off</string>
+    <string name="buzz">Buzz</string>
+    <string name="increase">Increase</string>
+    <string name="decrease">Decrease</string>
+    <string name="minutes_short">%1$d min</string>
+    <string name="seconds_short">%1$d s</string>
+    <string name="bpm">%1$d bpm</string>
+
+    <string name="channel_alarm">Alarm</string>
+    <string name="channel_session">Workouts and smart wake</string>
+
+    <string name="setup_bluetooth_permission">Air Buzz needs the Nearby devices permission to talk to your Fitbit Air.</string>
+    <string name="setup_bluetooth_off">Bluetooth is off. Turn it on so Air Buzz can reach the band.</string>
+    <string name="setup_no_band">No Fitbit Air paired with this phone. Pair it in the Google Health app first, then come back.</string>
+    <string name="setup_no_band_short">No Fitbit Air paired</string>
+    <string name="setup_notifications">Allow notifications so the alarm can show a Stop button and workouts keep running with the screen off.</string>
+
+    <!-- Alarm -->
+    <string name="alarm_backup_note">Keep the band\'s own alarm on as a backup (set it in Google Health). Air Buzz cannot set the band\'s alarm: it buzzes the band from this phone over Bluetooth, so keep the phone nearby with Bluetooth on.</string>
+    <string name="alarm_when">Wake time</string>
+    <string name="alarm_weekdays">Mon–Fri</string>
+    <string name="alarm_weekend">Sat–Sun</string>
+    <string name="alarm_next">Next alarm: %1$s</string>
+    <string name="alarm_off">No alarm set.</string>
+    <string name="alarm_smart">Smart wake window</string>
+    <string name="alarm_smart_explain">Wakes you up to that many minutes early, when your heart rate rises at least 8 bpm above your night baseline for 2 minutes (a sign of light sleep). It starts listening 10 minutes before the window to learn the baseline, which uses some extra battery on the band and the phone. Needs \"share heart rate\" on in Google Health.</string>
+    <string name="alarm_fallback">If you don\'t wake up</string>
+    <string name="alarm_phone_fallback">Phone alarm sound after 5 min</string>
+    <string name="alarm_fallback_explain">The band buzzes 20 times, again every 2 minutes, until you tap Stop. If the band cannot be reached twice in a row, the phone rings right away, even with this switch off.</string>
+    <string name="alarm_exact_missing">Exact alarms are not allowed for Air Buzz, so the alarm may be late. Allow \"Alarms &amp; reminders\".</string>
+    <string name="alarm_battery">For reliable alarms, let Air Buzz run without battery restrictions.</string>
+    <string name="alarm_test">Test alarm in 1 minute</string>
+    <string name="alarm_test_set">Test alarm set for 1 minute from now. You can lock the phone.</string>
+    <string name="alarm_watching">Smart wake: watching your heart rate until %1$s</string>
+    <string name="alarm_status_watching">Smart wake is watching your heart rate</string>
+    <string name="alarm_status_ringing">Alarm is ringing</string>
+    <string name="alarm_status_hr">Heart rate %1$s · night baseline %2$s</string>
+    <string name="alarm_stop">Stop alarm</string>
+    <string name="alarm_ringing_title">Wake up</string>
+    <string name="alarm_ringing_text">Your band is buzzing. Tap to stop.</string>
+    <string name="alarm_phone_ringing">The phone is ringing too.</string>
+
+    <!-- Intervals -->
+    <string name="preset_hiit">HIIT</string>
+    <string name="preset_emom">EMOM</string>
+    <string name="preset_tabata">Tabata</string>
+    <string name="preset_custom">Custom</string>
+    <string name="preset_hiit_help">40 s work, 20 s rest, 8 rounds.</string>
+    <string name="preset_emom_help">Every minute on the minute: one buzz at the start of each minute, 10 rounds.</string>
+    <string name="preset_tabata_help">20 s work, 10 s rest, 8 rounds. The 10 s rests are too short for the wrist, so the phone beeps for them.</string>
+    <string name="preset_custom_help">Your own work, rest and rounds.</string>
+    <string name="work">Work</string>
+    <string name="rest">Rest</string>
+    <string name="rounds">Rounds</string>
+    <string name="interval_total">Total %1$s (with a 10 s countdown)</string>
+    <string name="interval_short_warning">Each %1$s is shorter than %2$d s, too short for the wrist (a buzz takes a few seconds to arrive). The phone will beep for it instead.</string>
+    <string name="interval_vocab">Wrist: long fast buzz = work, short slow buzz = rest, very long = done. Buzzes are sent %1$d s early to cover the delay.</string>
+    <string name="phone_beeps_too">Phone beeps too</string>
+    <string name="segment_prep">Get ready</string>
+    <string name="segment_work">Work</string>
+    <string name="segment_rest">Rest</string>
+    <string name="round_of">Round %1$d of %2$d</string>
+    <string name="remaining_total">%1$s left in total</string>
+    <string name="session_done">Done</string>
+    <string name="session_starting">Starting…</string>
+    <string name="session_interval_notification">%1$s · round %2$d/%3$d</string>
+    <string name="session_zone_notification">Zone %1$d · %2$s</string>
+    <string name="session_other_running">Another session is running. Stop it first.</string>
+    <string name="wrist_error">Band did not answer (%1$s). Falling back to the phone.</string>
+    <string name="hr_none">no heart rate</string>
+
+    <!-- Zones -->
+    <string name="age">Age</string>
+    <string name="max_hr_optional">Max HR (optional)</string>
+    <string name="max_hr_is">Max heart rate: %1$d bpm</string>
+    <string name="max_hr_needed">Enter your age (max HR = 220 − age) or your measured max heart rate.</string>
+    <string name="target_zone">Target zone</string>
+    <string name="zone_range">Zone %1$d: %2$d–%3$d bpm</string>
+    <string name="zone_names" formatted="false">Z1 50–60 % very easy · Z2 60–70 % easy · Z3 70–80 % moderate · Z4 80–90 % hard · Z5 90–100 % max</string>
+    <string name="zone_vocab">Short buzz = below the zone, speed up. Long buzz = above the zone, ease off. After 10 s out of the zone, at most every 45 s. No \"speed up\" buzz in the first minute.</string>
+    <string name="zone_no_data">No heart rate</string>
+    <string name="zone_below">Below zone</string>
+    <string name="zone_in">In zone</string>
+    <string name="zone_above">Above zone</string>
+    <string name="time_in_zone">%1$s in zone of %2$s</string>
+
+    <!-- Test -->
+    <string name="test_intro">Learn the buzzes before you rely on them. Each one takes a few seconds to reach the band; tap \"I felt it\" when you feel it to measure the delay.</string>
+    <string name="signal_go">Work (go)</string>
+    <string name="signal_rest">Rest</string>
+    <string name="signal_done">Workout done</string>
+    <string name="signal_below">Below zone (speed up)</string>
+    <string name="signal_above">Above zone (ease off)</string>
+    <string name="signal_wake">Alarm</string>
+    <string name="signal_shape">%1$d pulses over %2$s s</string>
+    <string name="felt_it">I felt it</string>
+    <string name="felt_after">Felt after %1$.1f s</string>
+    <string name="use_as_lead">Send workout buzzes %1$d s early</string>
+    <string name="test_sent_ok">Command finished after %1$.1f s.</string>
+    <string name="lead_title">Delay</string>
+    <string name="lead_label">Send buzzes early by</string>
+    <string name="lead_explain">How long a buzz takes to reach your wrist. Usually 3–5 s.</string>
+    <string name="hr_title">Heart rate</string>
+    <string name="hr_check">Check heart rate</string>
+    <string name="hr_waiting">Waiting for heart rate…</string>
+    <string name="hr_hint">No heart rate? Turn on \"share heart rate\" for the Air in the Google Health app, and wear the band snugly.</string>
+    <string name="last_error">Last band error: %1$s</string>
+    <string name="impossible">Not possible with the Air: setting the band\'s own alarm, detecting taps on the band, and heart-rate variability (the band sends no RR intervals).</string>
+</resources>
