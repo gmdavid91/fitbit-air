@@ -1196,14 +1196,17 @@ class AirEngine(context: Context) {
         .expectSuccess(false).forceNonBlockwise(true)
         .body(byteArrayOf(0x0a, 0x01, 0x01)).build()
 
-    private fun readIntensity(coap: CoapEndpoint): Single<Int> =
+    private fun readIntensity(coap: CoapEndpoint, allowOff: Boolean = false): Single<Int> =
         coap.responseFor(intensityProbe()).timeout(3, TimeUnit.SECONDS).flatMap { response ->
             response.body.asData().map { body ->
-                if (response.responseCode.responseClass.toInt() != 2 ||
-                    !(body.contentEquals(byteArrayOf(10, 4, 10, 2, 8, 2)) ||
-                        body.contentEquals(byteArrayOf(10, 4, 10, 2, 8, 3)))
-                ) throw IllegalStateException("Air returned an unsupported haptic setting.")
-                body.last().toInt()
+                val value = if (response.responseCode.responseClass.toInt() == 2) AirHapticSettings.parse(body) else null
+                when {
+                    value == null -> throw IllegalStateException(
+                        "Air returned an unsupported haptic setting (${body.joinToString("") { "%02x".format(it) }}).")
+                    value == AirHapticSettings.OFF && !allowOff -> throw IllegalStateException(
+                        "Vibration is off on the Air (Google Health).")
+                    else -> value
+                }
             }
         }
 
@@ -1321,7 +1324,7 @@ class AirEngine(context: Context) {
                     } }.onErrorResumeNext { hapticError: Throwable ->
                         // A timed-out write may still have reached the Air. Restore the
                         // previously-read value before reporting the operation failure.
-                        writeIntensity(coap, original).retry(2).onErrorResumeNext { restoreError: Throwable ->
+        postSettings(coap, AirHapticSettings.restore(original)).retry(2).onErrorResumeNext { restoreError: Throwable ->
                             Single.error(IllegalStateException(
                                 "Haptic and restoration failed. Check vibration intensity in Google Health.",
                                 restoreError,
@@ -1347,19 +1350,23 @@ class AirEngine(context: Context) {
      * it is read back and verified, and restored on any failure.
      */
     private fun runBurst(coap: CoapEndpoint, pulses: Int, gapMillis: Long) {
-        disposables.add(readIntensity(coap).flatMap { original ->
-            val alternate = if (original == 2) 3 else 2
-            var chain: Single<Boolean> = writeIntensity(coap, alternate)
-            for (step in 2..pulses) {
-                val target = if (step % 2 == 0) original else alternate
+        disposables.add(readIntensity(coap, allowOff = true).flatMap { original ->
+            // From off (1) it alternates high and low, then puts off back: the wearer's setting is kept.
+            val targets = AirHapticSettings.burstTargets(original, pulses)
+            var chain: Single<Boolean> = writeIntensity(coap, targets.first())
+            for (target in targets.drop(1)) {
                 chain = chain.flatMap { Single.timer(gapMillis, TimeUnit.MILLISECONDS) }
                     .flatMap { writeIntensity(coap, target) }
             }
-            chain.flatMap { readIntensity(coap) }.map { verified ->
+            if (targets.last() != original) {
+                chain = chain.flatMap { Single.timer(gapMillis, TimeUnit.MILLISECONDS) }
+                    .flatMap { postSettings(coap, AirHapticSettings.restore(original)) }
+            }
+            chain.flatMap { readIntensity(coap, allowOff = true) }.map { verified ->
                 if (verified != original) throw IllegalStateException("Original haptic setting was not verified restored.")
                 original
             }.onErrorResumeNext { burstError: Throwable ->
-                writeIntensity(coap, original).retry(2).onErrorResumeNext { restoreError: Throwable ->
+                postSettings(coap, AirHapticSettings.restore(original)).retry(2).onErrorResumeNext { restoreError: Throwable ->
                     Single.error(IllegalStateException(
                         "Burst and restoration failed. Check vibration intensity in Google Health.", restoreError))
                 }.flatMap<Int> {

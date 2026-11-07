@@ -17,4 +17,22 @@ class AirHapticSettingsTest {
         assertThrows(IllegalArgumentException::class.java) { AirHapticSettings.tap(1) }
         assertThrows(IllegalArgumentException::class.java) { AirHapticSettings.write(4) }
     }
+
+    @Test fun `settings replies parse to the intensity, off included`() {
+        assertEquals(1, AirHapticSettings.parse(byteArrayOf(10, 4, 10, 2, 8, 1)))
+        assertEquals(3, AirHapticSettings.parse(byteArrayOf(10, 4, 10, 2, 8, 3)))
+        assertNull(AirHapticSettings.parse(byteArrayOf(10, 4, 10, 2, 8, 4)))
+        assertNull(AirHapticSettings.parse(byteArrayOf(10, 2, 8, 3)))
+    }
+
+    @Test fun `burst from a strength alternates and ends on it`() {
+        assertEquals(listOf(3, 2, 3, 2), AirHapticSettings.burstTargets(2, 4))
+        assertEquals(listOf(2, 3), AirHapticSettings.burstTargets(3, 2))
+    }
+
+    @Test fun `burst from off alternates high and low, off is restored after`() {
+        assertEquals(listOf(3, 2, 3, 2), AirHapticSettings.burstTargets(1, 4))
+        assertArrayEquals(byteArrayOf(10, 4, 10, 2, 8, 1), AirHapticSettings.restore(1))
+        assertThrows(IllegalArgumentException::class.java) { AirHapticSettings.restore(0) }
+    }
 }
